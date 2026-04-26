@@ -20,7 +20,7 @@ export default defineConfig({
       basepath: routerBasepath,
     },
     prerender: {
-      enabled: true,
+      enabled: isGithubPagesBuild,
       crawlLinks: false,
     },
     pages: [{ path: "/" }],
