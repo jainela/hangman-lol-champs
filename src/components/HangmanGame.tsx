@@ -138,6 +138,19 @@ export function HangmanGame() {
     setStreakFlash(null);
   };
 
+  const handleRulesChange = (next: Rules) => {
+    const maxWrongChanged = next.maxWrong !== rules.maxWrong;
+    setRules(next);
+    // If max lives changed mid-round it could leave the round in a weird
+    // state (already lost or already finished), so reset the current round.
+    if (maxWrongChanged) {
+      setGuessed(new Set());
+      setHintsUsed(0);
+      setHintFlash(null);
+      setCurrent(pickWord(filter));
+    }
+  };
+
   // Physical keyboard support
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
