@@ -49,10 +49,11 @@ jobs:
           fi
           echo "Using $OUT_DIR"
           touch "$OUT_DIR/.nojekyll"
-          # Fallback SPA: copia index.html como 404.html para soportar rutas
-          if [ -f "$OUT_DIR/index.html" ]; then
-            cp "$OUT_DIR/index.html" "$OUT_DIR/404.html"
+          if [ ! -f "$OUT_DIR/index.html" ]; then
+            echo "Build output is missing index.html"; exit 1
           fi
+          # Fallback SPA: copia index.html como 404.html para soportar rutas
+          cp "$OUT_DIR/index.html" "$OUT_DIR/404.html"
           echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
 
       - name: Setup Pages
