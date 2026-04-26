@@ -16,11 +16,27 @@ function pickWord(filter: Filter) {
 
 export function HangmanGame() {
   const [filter, setFilter] = useState<Filter>("todos");
-  const [current, setCurrent] = useState(() => pickWord("todos"));
+  // Avoid SSR/client mismatch: start with a deterministic word, randomize after mount.
+  const [current, setCurrent] = useState(() => WORDS[0]);
   const [guessed, setGuessed] = useState<Set<string>>(new Set());
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [bonusHints, setBonusHints] = useState(0);
   const [score, setScore] = useState({ wins: 0, losses: 0 });
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
   const [hintFlash, setHintFlash] = useState<string | null>(null);
+  const [streakFlash, setStreakFlash] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Streak milestones — granted when streak reaches these counts.
+  const STREAK_MILESTONES = [3, 5, 7, 10];
+
+  // Pick a random word once on the client to avoid hydration mismatch.
+  useEffect(() => {
+    setCurrent(pickWord(filter));
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const wrongLetters = useMemo(
     () => [...guessed].filter((l) => !current.word.includes(l)),
