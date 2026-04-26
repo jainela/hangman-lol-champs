@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CATEGORIES, MAX_WRONG, WORDS, type Category } from "@/lib/hangman-data";
+import { CATEGORIES, WORDS, type Category } from "@/lib/hangman-data";
 import { HangmanFigure } from "./HangmanFigure";
 import { Keyboard } from "./Keyboard";
 import { WordDisplay } from "./WordDisplay";
+import { RulesPanel, type Rules } from "./RulesPanel";
 
 type Filter = Category | "todos";
 
-// 1 fragmento hextech por cada 2 errores. Cuesta 1 fragmento usar una pista.
-const ERRORS_PER_HINT = 2;
+const DEFAULT_RULES: Rules = {
+  errorsPerHint: 2,
+  milestones: [3, 5, 7, 10],
+  maxWrong: 6,
+};
 
 function pickWord(filter: Filter) {
   const pool = filter === "todos" ? WORDS : WORDS.filter((w) => w.category === filter);
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
 
 export function HangmanGame() {
   const [filter, setFilter] = useState<Filter>("todos");
@@ -27,9 +32,10 @@ export function HangmanGame() {
   const [hintFlash, setHintFlash] = useState<string | null>(null);
   const [streakFlash, setStreakFlash] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [rules, setRules] = useState<Rules>(DEFAULT_RULES);
 
-  // Streak milestones — granted when streak reaches these counts.
-  const STREAK_MILESTONES = [3, 5, 7, 10];
+  const { errorsPerHint, milestones: STREAK_MILESTONES, maxWrong } = rules;
+
 
   // Pick a random word once on the client to avoid hydration mismatch.
   useEffect(() => {
@@ -46,14 +52,14 @@ export function HangmanGame() {
 
   // Earned hints = errors-based + bonuses from streak milestones; spent hints subtract.
   const hintsAvailable =
-    Math.floor(wrong / ERRORS_PER_HINT) + bonusHints - hintsUsed;
-  const errorsToNextHint = ERRORS_PER_HINT - (wrong % ERRORS_PER_HINT);
+    Math.floor(wrong / errorsPerHint) + bonusHints - hintsUsed;
+  const errorsToNextHint = errorsPerHint - (wrong % errorsPerHint);
 
   const won = useMemo(
     () => current.word.split("").every((l) => guessed.has(l)),
     [current.word, guessed],
   );
-  const lost = wrong >= MAX_WRONG;
+  const lost = wrong >= maxWrong;
   const finished = won || lost;
 
   // Score + streak handling on finish
@@ -132,6 +138,19 @@ export function HangmanGame() {
     setStreakFlash(null);
   };
 
+  const handleRulesChange = (next: Rules) => {
+    const maxWrongChanged = next.maxWrong !== rules.maxWrong;
+    setRules(next);
+    // If max lives changed mid-round it could leave the round in a weird
+    // state (already lost or already finished), so reset the current round.
+    if (maxWrongChanged) {
+      setGuessed(new Set());
+      setHintsUsed(0);
+      setHintFlash(null);
+      setCurrent(pickWord(filter));
+    }
+  };
+
   // Physical keyboard support
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -183,6 +202,9 @@ export function HangmanGame() {
         ))}
       </div>
 
+      {/* Rules panel */}
+      <RulesPanel rules={rules} defaults={DEFAULT_RULES} onChange={handleRulesChange} />
+
       {/* Score */}
       <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 font-display text-sm">
         <div className="flex flex-col items-center">
@@ -197,7 +219,7 @@ export function HangmanGame() {
         <div className="h-10 w-px bg-border" />
         <div className="flex flex-col items-center">
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Vidas</span>
-          <span className="text-2xl text-hextech-gradient">{MAX_WRONG - wrong}</span>
+          <span className="text-2xl text-hextech-gradient">{Math.max(0, maxWrong - wrong)}</span>
         </div>
         <div className="h-10 w-px bg-border" />
         <div
