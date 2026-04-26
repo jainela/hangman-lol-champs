@@ -44,8 +44,9 @@ export function HangmanGame() {
   );
   const wrong = wrongLetters.length;
 
-  // Earned hints based on errors made; spent hints subtract.
-  const hintsAvailable = Math.floor(wrong / ERRORS_PER_HINT) - hintsUsed;
+  // Earned hints = errors-based + bonuses from streak milestones; spent hints subtract.
+  const hintsAvailable =
+    Math.floor(wrong / ERRORS_PER_HINT) + bonusHints - hintsUsed;
   const errorsToNextHint = ERRORS_PER_HINT - (wrong % ERRORS_PER_HINT);
 
   const won = useMemo(
@@ -55,12 +56,28 @@ export function HangmanGame() {
   const lost = wrong >= MAX_WRONG;
   const finished = won || lost;
 
-  // Score on finish
+  // Score + streak handling on finish
   useEffect(() => {
-    if (won) setScore((s) => ({ ...s, wins: s.wins + 1 }));
-    else if (lost) setScore((s) => ({ ...s, losses: s.losses + 1 }));
+    if (won) {
+      setScore((s) => ({ ...s, wins: s.wins + 1 }));
+      setStreak((prev) => {
+        const next = prev + 1;
+        setBestStreak((b) => Math.max(b, next));
+        // Milestone reward: grant a bonus hint that carries to the next round.
+        if (STREAK_MILESTONES.includes(next)) {
+          setBonusHints((bh) => bh + 1);
+          setStreakFlash(`🔥 ¡Racha de ${next}! +1 pista hextech`);
+          setTimeout(() => setStreakFlash(null), 3500);
+        }
+        return next;
+      });
+    } else if (lost) {
+      setScore((s) => ({ ...s, losses: s.losses + 1 }));
+      setStreak(0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [won, lost]);
+
 
   const handleGuess = useCallback(
     (letter: string) => {
