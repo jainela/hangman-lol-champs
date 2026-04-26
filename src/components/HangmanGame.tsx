@@ -16,11 +16,27 @@ function pickWord(filter: Filter) {
 
 export function HangmanGame() {
   const [filter, setFilter] = useState<Filter>("todos");
-  const [current, setCurrent] = useState(() => pickWord("todos"));
+  // Avoid SSR/client mismatch: start with a deterministic word, randomize after mount.
+  const [current, setCurrent] = useState(() => WORDS[0]);
   const [guessed, setGuessed] = useState<Set<string>>(new Set());
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [bonusHints, setBonusHints] = useState(0);
   const [score, setScore] = useState({ wins: 0, losses: 0 });
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
   const [hintFlash, setHintFlash] = useState<string | null>(null);
+  const [streakFlash, setStreakFlash] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Streak milestones — granted when streak reaches these counts.
+  const STREAK_MILESTONES = [3, 5, 7, 10];
+
+  // Pick a random word once on the client to avoid hydration mismatch.
+  useEffect(() => {
+    setCurrent(pickWord(filter));
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const wrongLetters = useMemo(
     () => [...guessed].filter((l) => !current.word.includes(l)),
@@ -28,8 +44,9 @@ export function HangmanGame() {
   );
   const wrong = wrongLetters.length;
 
-  // Earned hints based on errors made; spent hints subtract.
-  const hintsAvailable = Math.floor(wrong / ERRORS_PER_HINT) - hintsUsed;
+  // Earned hints = errors-based + bonuses from streak milestones; spent hints subtract.
+  const hintsAvailable =
+    Math.floor(wrong / ERRORS_PER_HINT) + bonusHints - hintsUsed;
   const errorsToNextHint = ERRORS_PER_HINT - (wrong % ERRORS_PER_HINT);
 
   const won = useMemo(
@@ -39,12 +56,28 @@ export function HangmanGame() {
   const lost = wrong >= MAX_WRONG;
   const finished = won || lost;
 
-  // Score on finish
+  // Score + streak handling on finish
   useEffect(() => {
-    if (won) setScore((s) => ({ ...s, wins: s.wins + 1 }));
-    else if (lost) setScore((s) => ({ ...s, losses: s.losses + 1 }));
+    if (won) {
+      setScore((s) => ({ ...s, wins: s.wins + 1 }));
+      setStreak((prev) => {
+        const next = prev + 1;
+        setBestStreak((b) => Math.max(b, next));
+        // Milestone reward: grant a bonus hint that carries to the next round.
+        if (STREAK_MILESTONES.includes(next)) {
+          setBonusHints((bh) => bh + 1);
+          setStreakFlash(`🔥 ¡Racha de ${next}! +1 pista hextech`);
+          setTimeout(() => setStreakFlash(null), 3500);
+        }
+        return next;
+      });
+    } else if (lost) {
+      setScore((s) => ({ ...s, losses: s.losses + 1 }));
+      setStreak(0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [won, lost]);
+
 
   const handleGuess = useCallback(
     (letter: string) => {
@@ -80,6 +113,7 @@ export function HangmanGame() {
     (f: Filter = filter) => {
       setCurrent(pickWord(f));
       setGuessed(new Set());
+      // Reset per-round counters; bonusHints persists across rounds.
       setHintsUsed(0);
       setHintFlash(null);
     },
@@ -92,6 +126,10 @@ export function HangmanGame() {
     setGuessed(new Set());
     setHintsUsed(0);
     setHintFlash(null);
+    // Changing category resets streak + bonuses to keep things fair.
+    setStreak(0);
+    setBonusHints(0);
+    setStreakFlash(null);
   };
 
   // Physical keyboard support
@@ -146,7 +184,7 @@ export function HangmanGame() {
       </div>
 
       {/* Score */}
-      <div className="flex items-center justify-center gap-6 font-display text-sm">
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 font-display text-sm">
         <div className="flex flex-col items-center">
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Victorias</span>
           <span className="text-2xl text-gold-gradient">{score.wins}</span>
@@ -161,7 +199,47 @@ export function HangmanGame() {
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Vidas</span>
           <span className="text-2xl text-hextech-gradient">{MAX_WRONG - wrong}</span>
         </div>
+        <div className="h-10 w-px bg-border" />
+        <div
+          className={`flex flex-col items-center rounded-md px-3 transition-all ${
+            streak >= 3 ? "glow-gold" : ""
+          }`}
+        >
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            Racha
+          </span>
+          <span className="text-2xl">
+            {streak >= 1 && <span className="mr-1">🔥</span>}
+            <span className="text-gold-gradient">{streak}</span>
+          </span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            Mejor
+          </span>
+          <span className="text-2xl text-hextech-gradient">{bestStreak}</span>
+        </div>
       </div>
+
+      {/* Streak milestone flash */}
+      {streakFlash && (
+        <div className="frame-ornate animate-pulse-glow mx-auto rounded-full px-6 py-2 text-center font-display text-sm uppercase tracking-widest text-gold-gradient">
+          {streakFlash}
+        </div>
+      )}
+
+      {/* Streak progress hint */}
+      {streak > 0 && (() => {
+        const next = STREAK_MILESTONES.find((m) => m > streak);
+        if (!next) return null;
+        return (
+          <p className="-mt-2 text-center text-xs text-muted-foreground">
+            <span className="text-gold-gradient font-bold">{next - streak}</span>{" "}
+            {next - streak === 1 ? "victoria" : "victorias"} más para tu próxima pista bonus
+            (hito de {next})
+          </p>
+        );
+      })()}
 
       {/* Game board */}
       <div className="frame-ornate rounded-2xl p-5 sm:p-8">
