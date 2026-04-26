@@ -25,17 +25,22 @@ export function HangmanGame() {
   const [current, setCurrent] = useState(() => WORDS[0]);
   const [guessed, setGuessed] = useState<Set<string>>(new Set());
   const [hintsUsed, setHintsUsed] = useState(0);
-  const [bonusHints, setBonusHints] = useState(0);
+  // Track which milestones have already paid out so we can recompute
+  // (without double-rewarding) when the rules change mid-session.
+  const [awardedMilestones, setAwardedMilestones] = useState<Set<number>>(
+    new Set(),
+  );
   const [score, setScore] = useState({ wins: 0, losses: 0 });
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [hintFlash, setHintFlash] = useState<string | null>(null);
   const [streakFlash, setStreakFlash] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
+  const [, setHydrated] = useState(false);
   const [rules, setRules] = useState<Rules>(DEFAULT_RULES);
 
   const { errorsPerHint, milestones: STREAK_MILESTONES, maxWrong } = rules;
 
+  const bonusHints = awardedMilestones.size;
 
   // Pick a random word once on the client to avoid hydration mismatch.
   useEffect(() => {
@@ -51,8 +56,8 @@ export function HangmanGame() {
   const wrong = wrongLetters.length;
 
   // Earned hints = errors-based + bonuses from streak milestones; spent hints subtract.
-  const hintsAvailable =
-    Math.floor(wrong / errorsPerHint) + bonusHints - hintsUsed;
+  const hintsFromErrors = Math.floor(wrong / errorsPerHint);
+  const hintsAvailable = Math.max(0, hintsFromErrors + bonusHints - hintsUsed);
   const errorsToNextHint = errorsPerHint - (wrong % errorsPerHint);
 
   const won = useMemo(
@@ -70,8 +75,12 @@ export function HangmanGame() {
         const next = prev + 1;
         setBestStreak((b) => Math.max(b, next));
         // Milestone reward: grant a bonus hint that carries to the next round.
-        if (STREAK_MILESTONES.includes(next)) {
-          setBonusHints((bh) => bh + 1);
+        if (STREAK_MILESTONES.includes(next) && !awardedMilestones.has(next)) {
+          setAwardedMilestones((set) => {
+            const copy = new Set(set);
+            copy.add(next);
+            return copy;
+          });
           setStreakFlash(`🔥 ¡Racha de ${next}! +1 pista hextech`);
           setTimeout(() => setStreakFlash(null), 3500);
         }
@@ -80,9 +89,13 @@ export function HangmanGame() {
     } else if (lost) {
       setScore((s) => ({ ...s, losses: s.losses + 1 }));
       setStreak(0);
+      // Losing a round breaks the streak, so previously-awarded milestones
+      // can be earned again on a new run.
+      setAwardedMilestones(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [won, lost]);
+
 
 
   const handleGuess = useCallback(
