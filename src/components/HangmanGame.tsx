@@ -203,7 +203,7 @@ export function HangmanGame() {
         <div className="h-10 w-px bg-border" />
         <div className="flex flex-col items-center">
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Vidas</span>
-          <span className="text-2xl text-hextech-gradient">{MAX_WRONG - wrong}</span>
+          <span className="text-2xl text-hextech-gradient">{Math.max(0, maxWrong - wrong)}</span>
         </div>
         <div className="h-10 w-px bg-border" />
         <div
