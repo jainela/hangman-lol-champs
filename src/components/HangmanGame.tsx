@@ -52,14 +52,14 @@ export function HangmanGame() {
 
   // Earned hints = errors-based + bonuses from streak milestones; spent hints subtract.
   const hintsAvailable =
-    Math.floor(wrong / ERRORS_PER_HINT) + bonusHints - hintsUsed;
-  const errorsToNextHint = ERRORS_PER_HINT - (wrong % ERRORS_PER_HINT);
+    Math.floor(wrong / errorsPerHint) + bonusHints - hintsUsed;
+  const errorsToNextHint = errorsPerHint - (wrong % errorsPerHint);
 
   const won = useMemo(
     () => current.word.split("").every((l) => guessed.has(l)),
     [current.word, guessed],
   );
-  const lost = wrong >= MAX_WRONG;
+  const lost = wrong >= maxWrong;
   const finished = won || lost;
 
   // Score + streak handling on finish
