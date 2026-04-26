@@ -147,20 +147,63 @@ export function HangmanGame() {
     setHintFlash(null);
     // Changing category resets streak + bonuses to keep things fair.
     setStreak(0);
-    setBonusHints(0);
+    setAwardedMilestones(new Set());
     setStreakFlash(null);
   };
 
   const handleRulesChange = (next: Rules) => {
-    const maxWrongChanged = next.maxWrong !== rules.maxWrong;
+    const prev = rules;
     setRules(next);
-    // If max lives changed mid-round it could leave the round in a weird
-    // state (already lost or already finished), so reset the current round.
-    if (maxWrongChanged) {
-      setGuessed(new Set());
-      setHintsUsed(0);
-      setHintFlash(null);
-      setCurrent(pickWord(filter));
+
+    // 1) Reconcile streak rewards: keep only milestones that still exist
+    //    in the new rule set AND that the player has actually reached.
+    //    Newly-added milestones at or below the current streak are awarded
+    //    retroactively. Removed milestones forfeit their bonus.
+    const reconciled = new Set<number>();
+    let retroactivelyAdded = 0;
+    for (const m of next.milestones) {
+      if (m <= streak) {
+        reconciled.add(m);
+        // It's a "new" award if it wasn't in the old set or wasn't a
+        // milestone before.
+        if (!awardedMilestones.has(m) || !prev.milestones.includes(m)) {
+          retroactivelyAdded++;
+        }
+      }
+    }
+    setAwardedMilestones(reconciled);
+
+    // 2) Reconcile spent hints: never let hintsUsed exceed what's available
+    //    after the rule change. (Already-used hints can't be "given back",
+    //    but a stricter rule shouldn't push hintsAvailable negative.)
+    const newBonus = reconciled.size;
+    const newFromErrors = Math.floor(wrong / next.errorsPerHint);
+    const newTotalEarned = newBonus + newFromErrors;
+    if (hintsUsed > newTotalEarned) {
+      setHintsUsed(newTotalEarned);
+    }
+
+    // 3) Surface a friendly message if retroactive bonuses were granted.
+    if (retroactivelyAdded > 0) {
+      setStreakFlash(
+        `📜 Reglas actualizadas · +${retroactivelyAdded} ${
+          retroactivelyAdded === 1 ? "pista bonus" : "pistas bonus"
+        }`,
+      );
+      setTimeout(() => setStreakFlash(null), 3500);
+    }
+
+    // 4) If max lives changed and the current round would be retroactively
+    //    lost (or already-finished), reset the current round so the player
+    //    can keep playing under the new rules.
+    if (next.maxWrong !== prev.maxWrong) {
+      const wouldBeLost = wrong >= next.maxWrong;
+      if (wouldBeLost || finished) {
+        setGuessed(new Set());
+        setHintsUsed(0);
+        setHintFlash(null);
+        setCurrent(pickWord(filter));
+      }
     }
   };
 
