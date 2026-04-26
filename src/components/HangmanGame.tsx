@@ -32,9 +32,10 @@ export function HangmanGame() {
   const [hintFlash, setHintFlash] = useState<string | null>(null);
   const [streakFlash, setStreakFlash] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [rules, setRules] = useState<Rules>(DEFAULT_RULES);
 
-  // Streak milestones — granted when streak reaches these counts.
-  const STREAK_MILESTONES = [3, 5, 7, 10];
+  const { errorsPerHint, milestones: STREAK_MILESTONES, maxWrong } = rules;
+
 
   // Pick a random word once on the client to avoid hydration mismatch.
   useEffect(() => {
