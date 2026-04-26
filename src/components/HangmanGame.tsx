@@ -202,6 +202,9 @@ export function HangmanGame() {
         ))}
       </div>
 
+      {/* Rules panel */}
+      <RulesPanel rules={rules} defaults={DEFAULT_RULES} onChange={handleRulesChange} />
+
       {/* Score */}
       <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 font-display text-sm">
         <div className="flex flex-col items-center">
