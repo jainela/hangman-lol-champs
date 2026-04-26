@@ -6,6 +6,9 @@ import { WordDisplay } from "./WordDisplay";
 
 type Filter = Category | "todos";
 
+// 1 fragmento hextech por cada 2 errores. Cuesta 1 fragmento usar una pista.
+const ERRORS_PER_HINT = 2;
+
 function pickWord(filter: Filter) {
   const pool = filter === "todos" ? WORDS : WORDS.filter((w) => w.category === filter);
   return pool[Math.floor(Math.random() * pool.length)];
@@ -15,13 +18,19 @@ export function HangmanGame() {
   const [filter, setFilter] = useState<Filter>("todos");
   const [current, setCurrent] = useState(() => pickWord("todos"));
   const [guessed, setGuessed] = useState<Set<string>>(new Set());
+  const [hintsUsed, setHintsUsed] = useState(0);
   const [score, setScore] = useState({ wins: 0, losses: 0 });
+  const [hintFlash, setHintFlash] = useState<string | null>(null);
 
   const wrongLetters = useMemo(
     () => [...guessed].filter((l) => !current.word.includes(l)),
     [guessed, current.word],
   );
   const wrong = wrongLetters.length;
+
+  // Earned hints based on errors made; spent hints subtract.
+  const hintsAvailable = Math.floor(wrong / ERRORS_PER_HINT) - hintsUsed;
+  const errorsToNextHint = ERRORS_PER_HINT - (wrong % ERRORS_PER_HINT);
 
   const won = useMemo(
     () => current.word.split("").every((l) => guessed.has(l)),
@@ -50,10 +59,29 @@ export function HangmanGame() {
     [finished],
   );
 
+  const useHint = useCallback(() => {
+    if (finished || hintsAvailable <= 0) return;
+    const remaining = [...new Set(current.word.split(""))].filter(
+      (l) => !guessed.has(l),
+    );
+    if (remaining.length === 0) return;
+    const letter = remaining[Math.floor(Math.random() * remaining.length)];
+    setGuessed((prev) => {
+      const next = new Set(prev);
+      next.add(letter);
+      return next;
+    });
+    setHintsUsed((n) => n + 1);
+    setHintFlash(letter);
+    setTimeout(() => setHintFlash(null), 1200);
+  }, [finished, hintsAvailable, current.word, guessed]);
+
   const newRound = useCallback(
     (f: Filter = filter) => {
       setCurrent(pickWord(f));
       setGuessed(new Set());
+      setHintsUsed(0);
+      setHintFlash(null);
     },
     [filter],
   );
@@ -62,6 +90,8 @@ export function HangmanGame() {
     setFilter(f);
     setCurrent(pickWord(f));
     setGuessed(new Set());
+    setHintsUsed(0);
+    setHintFlash(null);
   };
 
   // Physical keyboard support
@@ -72,11 +102,16 @@ export function HangmanGame() {
         newRound();
         return;
       }
+      if (k === " " || e.key === "Tab") {
+        e.preventDefault();
+        useHint();
+        return;
+      }
       if (/^[A-ZÑ]$/.test(k)) handleGuess(k);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleGuess, finished, newRound]);
+  }, [handleGuess, finished, newRound, useHint]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -147,6 +182,69 @@ export function HangmanGame() {
 
             <WordDisplay word={current.word} guessed={guessed} reveal={lost} />
 
+            {/* Hextech hint panel */}
+            <div className="flex flex-col gap-2 rounded-lg border border-hextech/30 bg-secondary/40 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🔮</span>
+                  <div className="flex flex-col">
+                    <span className="font-display text-xs uppercase tracking-widest text-muted-foreground">
+                      Fragmentos Hextech
+                    </span>
+                    <div className="mt-0.5 flex gap-1">
+                      {Array.from({ length: Math.max(hintsAvailable, 1) }).map((_, i) => (
+                        <span
+                          key={i}
+                          className={`h-2.5 w-2.5 rotate-45 ${
+                            i < hintsAvailable
+                              ? "bg-hextech glow-hextech"
+                              : "border border-hextech/30 bg-transparent"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={useHint}
+                  disabled={hintsAvailable <= 0 || finished}
+                  className={`rounded-md px-3 py-2 font-display text-xs uppercase tracking-wider transition-all ${
+                    hintsAvailable > 0 && !finished
+                      ? "text-primary-foreground hover:scale-105 active:scale-95 cursor-pointer"
+                      : "cursor-not-allowed opacity-40"
+                  }`}
+                  style={
+                    hintsAvailable > 0 && !finished
+                      ? {
+                          background: "var(--gradient-hextech)",
+                          boxShadow: "var(--shadow-hextech)",
+                        }
+                      : { background: "oklch(0.28 0.05 240)" }
+                  }
+                >
+                  Revelar letra
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {hintsAvailable > 0 ? (
+                  <>
+                    Tienes <span className="text-hextech-gradient font-bold">{hintsAvailable}</span>{" "}
+                    {hintsAvailable === 1 ? "pista disponible" : "pistas disponibles"}.
+                  </>
+                ) : (
+                  <>
+                    Falla {errorsToNextHint}{" "}
+                    {errorsToNextHint === 1 ? "letra más" : "letras más"} para ganar una pista.
+                  </>
+                )}
+                {hintFlash && (
+                  <span className="ml-2 text-gold-gradient font-bold">
+                    ✨ Letra revelada: {hintFlash}
+                  </span>
+                )}
+              </p>
+            </div>
+
             {wrongLetters.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-display text-xs uppercase tracking-widest text-muted-foreground">
@@ -212,7 +310,7 @@ export function HangmanGame() {
       />
 
       <p className="text-center text-xs text-muted-foreground">
-        Tip: usa tu teclado físico para jugar más rápido · Enter para nueva partida
+        Teclado físico para jugar · Espacio para usar pista · Enter para nueva partida
       </p>
     </div>
   );
