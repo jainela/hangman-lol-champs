@@ -1,0 +1,75 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        env:
+          # Si tu repo se llama "mi-repo", la app vivirá en /mi-repo/
+          # GitHub expone el nombre del repo en GITHUB_REPOSITORY (owner/repo)
+          BASE_PATH: /${{ github.event.repository.name }}/
+        run: bun run build
+
+      - name: Prepare static output
+        run: |
+          # TanStack Start emite el bundle del cliente en dist/client
+          # Si tu build sale en otra carpeta, ajústalo aquí.
+          OUT_DIR=""
+          for candidate in dist/client dist/public dist; do
+            if [ -d "$candidate" ]; then OUT_DIR="$candidate"; break; fi
+          done
+          if [ -z "$OUT_DIR" ]; then
+            echo "No build output directory found"; exit 1
+          fi
+          echo "Using $OUT_DIR"
+          touch "$OUT_DIR/.nojekyll"
+          # Fallback SPA: copia index.html como 404.html para soportar rutas
+          if [ -f "$OUT_DIR/index.html" ]; then
+            cp "$OUT_DIR/index.html" "$OUT_DIR/404.html"
+          fi
+          echo "OUT_DIR=$OUT_DIR" >> $GITHUB_ENV
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.OUT_DIR }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
