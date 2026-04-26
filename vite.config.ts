@@ -8,8 +8,10 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 const githubPagesBase = process.env.BASE_PATH ?? "/";
 const routerBasepath = githubPagesBase === "/" ? undefined : githubPagesBase.replace(/\/$/, "");
+const isGithubPagesBuild = process.env.GITHUB_ACTIONS === "true" && githubPagesBase !== "/";
 
 export default defineConfig({
+  cloudflare: isGithubPagesBuild ? false : undefined,
   vite: {
     base: githubPagesBase,
   },
