@@ -184,7 +184,7 @@ export function HangmanGame() {
       </div>
 
       {/* Score */}
-      <div className="flex items-center justify-center gap-6 font-display text-sm">
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 font-display text-sm">
         <div className="flex flex-col items-center">
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Victorias</span>
           <span className="text-2xl text-gold-gradient">{score.wins}</span>
@@ -199,7 +199,47 @@ export function HangmanGame() {
           <span className="text-xs uppercase tracking-widest text-muted-foreground">Vidas</span>
           <span className="text-2xl text-hextech-gradient">{MAX_WRONG - wrong}</span>
         </div>
+        <div className="h-10 w-px bg-border" />
+        <div
+          className={`flex flex-col items-center rounded-md px-3 transition-all ${
+            streak >= 3 ? "glow-gold" : ""
+          }`}
+        >
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            Racha
+          </span>
+          <span className="text-2xl">
+            {streak >= 1 && <span className="mr-1">🔥</span>}
+            <span className="text-gold-gradient">{streak}</span>
+          </span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            Mejor
+          </span>
+          <span className="text-2xl text-hextech-gradient">{bestStreak}</span>
+        </div>
       </div>
+
+      {/* Streak milestone flash */}
+      {streakFlash && (
+        <div className="frame-ornate animate-pulse-glow mx-auto rounded-full px-6 py-2 text-center font-display text-sm uppercase tracking-widest text-gold-gradient">
+          {streakFlash}
+        </div>
+      )}
+
+      {/* Streak progress hint */}
+      {streak > 0 && (() => {
+        const next = STREAK_MILESTONES.find((m) => m > streak);
+        if (!next) return null;
+        return (
+          <p className="-mt-2 text-center text-xs text-muted-foreground">
+            <span className="text-gold-gradient font-bold">{next - streak}</span>{" "}
+            {next - streak === 1 ? "victoria" : "victorias"} más para tu próxima pista bonus
+            (hito de {next})
+          </p>
+        );
+      })()}
 
       {/* Game board */}
       <div className="frame-ornate rounded-2xl p-5 sm:p-8">
