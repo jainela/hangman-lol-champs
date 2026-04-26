@@ -113,6 +113,7 @@ export function HangmanGame() {
     (f: Filter = filter) => {
       setCurrent(pickWord(f));
       setGuessed(new Set());
+      // Reset per-round counters; bonusHints persists across rounds.
       setHintsUsed(0);
       setHintFlash(null);
     },
@@ -125,6 +126,10 @@ export function HangmanGame() {
     setGuessed(new Set());
     setHintsUsed(0);
     setHintFlash(null);
+    // Changing category resets streak + bonuses to keep things fair.
+    setStreak(0);
+    setBonusHints(0);
+    setStreakFlash(null);
   };
 
   // Physical keyboard support
