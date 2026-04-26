@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CATEGORIES, MAX_WRONG, WORDS, type Category } from "@/lib/hangman-data";
+import { CATEGORIES, WORDS, type Category } from "@/lib/hangman-data";
 import { HangmanFigure } from "./HangmanFigure";
 import { Keyboard } from "./Keyboard";
 import { WordDisplay } from "./WordDisplay";
+import { RulesPanel, type Rules } from "./RulesPanel";
 
 type Filter = Category | "todos";
 
-// 1 fragmento hextech por cada 2 errores. Cuesta 1 fragmento usar una pista.
-const ERRORS_PER_HINT = 2;
+const DEFAULT_RULES: Rules = {
+  errorsPerHint: 2,
+  milestones: [3, 5, 7, 10],
+  maxWrong: 6,
+};
 
 function pickWord(filter: Filter) {
   const pool = filter === "todos" ? WORDS : WORDS.filter((w) => w.category === filter);
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
 
 export function HangmanGame() {
   const [filter, setFilter] = useState<Filter>("todos");
